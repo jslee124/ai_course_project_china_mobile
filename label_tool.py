@@ -24,12 +24,10 @@ CLASS_COLORS = {
 }
 
 class LabelTool:
-    def __init__(self, image_dir, xml_dir="xml", labels_dir="labels"):
+    def __init__(self, image_dir, xml_dir="xml"):
         self.image_dir = Path(image_dir)
         self.xml_dir = Path(xml_dir)
-        self.labels_dir = Path(labels_dir)
         self.xml_dir.mkdir(parents=True, exist_ok=True)
-        self.labels_dir.mkdir(parents=True, exist_ok=True)
 
         self.image_exts = (".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff")
         self.image_files = sorted([

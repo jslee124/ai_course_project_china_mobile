@@ -4,7 +4,8 @@ import os
 from os import getcwd
 
 sets = ['train', 'val', 'test']
-classes = ["car"]  # 改成自己的类别
+# 与 yolov5/data/mydata.yaml 和顶层 voc2yolo.py 保持一致。
+classes = ["person", "car", "motorcycle", "bus", "truck"]
 abs_path = os.getcwd()
 print(abs_path)
 

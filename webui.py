@@ -4,10 +4,8 @@
 支持上传视频，实时显示检测、追踪与计数结果
 """
 
-import os
 import sys
 import argparse
-import copy
 from pathlib import Path
 import tempfile
 
@@ -17,7 +15,8 @@ import torch
 import gradio as gr
 
 # 从 main.py 导入核心模块
-from main import VehicleCounter, COCO_CLASSES, TARGET_CLASSES, PERSON_CLASSES
+from main import VehicleCounter
+from yolov5.utils.augmentations import letterbox
 
 
 class GradioVehicleCounter:
@@ -71,9 +70,16 @@ class GradioVehicleCounter:
                 frame_height -= 1
 
         # 输出视频
-        output_path = os.path.join(tempfile.gettempdir(), "output_count.mp4")
+        temp_file = tempfile.NamedTemporaryFile(prefix="vehicle_count_", suffix=".mp4", delete=False)
+        output_path = temp_file.name
+        temp_file.close()
         fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+        if fps <= 0:
+            fps = 30.0
         out = cv2.VideoWriter(output_path, fourcc, fps, (frame_width, frame_height))
+        if not out.isOpened():
+            cap.release()
+            return None, "无法创建输出视频文件"
 
         # 重置 DeepSORT (新视频新计数)
         from tracker.utils.parser import get_config
@@ -92,6 +98,7 @@ class GradioVehicleCounter:
         self.counter.vehicle_count = 0
         self.counter.counted_ids = set()
         self.counter.track_frames = {}
+        self.counter.track_centers = {}
         self.counter.counting_line_y = None
 
         frame_idx = 0
@@ -104,16 +111,19 @@ class GradioVehicleCounter:
 
                 # 预处理
                 h, w = frame.shape[:2]
-                if self.counter.counting_line_y is None:
-                    self.counter.counting_line_y = h - 350
 
                 # 缩放
                 if (w, h) != (frame_width, frame_height):
                     frame = cv2.resize(frame, (frame_width, frame_height))
 
-                # 预处理 (匹配 YOLOv5 输入)
-                im = cv2.resize(frame, (self.opt.imgsz[0], self.opt.imgsz[0]))
-                im = im.transpose(2, 0, 1)  # HWC → CHW
+                # 与命令行入口保持一致：letterbox 保持宽高比，BGR → RGB
+                im = letterbox(
+                    frame,
+                    self.counter.imgsz,
+                    stride=self.counter.stride,
+                    auto=self.counter.pt,
+                )[0]
+                im = im[:, :, ::-1].transpose(2, 0, 1)  # BGR HWC → RGB CHW
                 im = np.ascontiguousarray(im)
 
                 # 处理帧
@@ -142,10 +152,15 @@ class GradioVehicleCounter:
 
         with torch.no_grad():
             h, w = image.shape[:2]
-            self.counter.counting_line_y = h - 350
+            self.counter.counting_line_y = None
 
-            im = cv2.resize(image, (self.opt.imgsz[0], self.opt.imgsz[0]))
-            im = im.transpose(2, 0, 1)
+            im = letterbox(
+                image,
+                self.counter.imgsz,
+                stride=self.counter.stride,
+                auto=self.counter.pt,
+            )[0]
+            im = im[:, :, ::-1].transpose(2, 0, 1)
             im = np.ascontiguousarray(im)
 
             annotated, dets = self.counter.process_frame(im, image, "", None, 0)
@@ -166,7 +181,7 @@ def create_interface():
         deep_sort_model="osnet_ibn_x1_0_MSMT17",
     )
 
-    with gr.Blocks(title="高速车流量计数器", theme=gr.themes.Soft()) as demo:
+    with gr.Blocks(title="高速车流量计数器") as demo:
         gr.Markdown("""
         # 🚗 高速车流量计数器
         ### YOLOv5 + DeepSORT —— 检测、追踪并分别统计人员与车辆
@@ -264,4 +279,5 @@ if __name__ == "__main__":
         server_port=7860,
         share=False,
         inbrowser=True,
+        theme=gr.themes.Soft(),
     )

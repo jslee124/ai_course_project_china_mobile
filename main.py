@@ -4,11 +4,8 @@
 检测、追踪并分别统计视频中的人员和车辆
 """
 
-import os
 import sys
-import copy
 import argparse
-import shutil
 import time
 from pathlib import Path
 
@@ -80,6 +77,10 @@ class VehicleCounter:
         self.model = DetectMultiBackend(opt.yolo_model, device=self.device, dnn=opt.dnn)
         self.stride, self.names, self.pt = self.model.stride, self.model.names, self.model.pt
         self.imgsz = check_img_size(opt.imgsz, s=self.stride)
+        if isinstance(self.imgsz, int):
+            self.imgsz = [self.imgsz, self.imgsz]
+        elif len(self.imgsz) == 1:
+            self.imgsz = [self.imgsz[0], self.imgsz[0]]
 
         if self.pt and self.half:
             self.model.model.half()
@@ -106,7 +107,7 @@ class VehicleCounter:
         self.vehicle_count = 0
         self.counted_ids = set()
         self.track_frames = {}  # track_id -> 连续出现帧数
-        self.min_track_frames = 15  # 稳定追踪至少 N 帧后才计数
+        self.track_centers = {}  # track_id -> 上一帧目标中心点 y 坐标
 
         # 计数线位置（按画面比例）
         self.counting_line_y = None
@@ -144,13 +145,14 @@ class VehicleCounter:
                 det[:, :4] = scale_coords(im_tensor.shape[2:], det[:, :4], im0.shape).round()
 
                 # 过滤：只保留 人员 和 车辆
-                keep_mask = torch.zeros(len(det), dtype=torch.bool)
+                keep_mask = torch.zeros(len(det), dtype=torch.bool, device=det.device)
                 for i, c in enumerate(det[:, -1]):
                     if int(c.item()) in TARGET_CLASSES:
                         keep_mask[i] = True
                 det = det[keep_mask]
 
                 if len(det) == 0:
+                    self.deepsort.increment_ages()
                     continue
 
                 xywhs = xyxy2xywh(det[:, 0:4])
@@ -166,12 +168,20 @@ class VehicleCounter:
                         track_id = int(output[4])
                         cls_id = int(output[5])
 
-                        # 追踪帧计数
+                        # 追踪帧计数与真实过线判断
                         self.track_frames[track_id] = self.track_frames.get(track_id, 0) + 1
+                        center_y = (float(bboxes[1]) + float(bboxes[3])) / 2.0
+                        previous_y = self.track_centers.get(track_id)
+                        crossed_line = (
+                            previous_y is not None
+                            and (previous_y - self.counting_line_y)
+                            * (center_y - self.counting_line_y) <= 0
+                            and previous_y != center_y
+                        )
+                        self.track_centers[track_id] = center_y
 
-                        # 稳定追踪计数：track 连续出现超 min_track_frames 帧，且未被计数过
-                        if (self.track_frames[track_id] >= self.min_track_frames
-                                and track_id not in self.counted_ids):
+                        # DeepSORT 只输出已确认轨迹；每个 Track ID 穿线时只计数一次
+                        if crossed_line and track_id not in self.counted_ids:
                             self.counted_ids.add(track_id)
                             if cls_id in PERSON_CLASSES:
                                 self.person_count += 1
@@ -228,13 +238,6 @@ def detect(opt, gr_callback=None):
     """主检测函数 —— 可被命令行和 Gradio 前端调用"""
     source = opt.source
     webcam = source == "0" or source.startswith("rtsp") or source.startswith("http") or source.endswith(".txt")
-    out = opt.output
-
-    # 输出目录
-    if not opt.evaluate:
-        if os.path.exists(out):
-            shutil.rmtree(out)
-        os.makedirs(out, exist_ok=True)
 
     save_dir = increment_path(Path(opt.project) / opt.name, exist_ok=opt.exist_ok)
     save_dir.mkdir(parents=True, exist_ok=True)
@@ -330,7 +333,7 @@ def detect(opt, gr_callback=None):
         cv2.destroyAllWindows()
 
     # 打印统计
-    t = tuple(x / seen * 1E3 for x in dt)
+    t = tuple(x / max(seen, 1) * 1E3 for x in dt)
     print(f"\n{'='*50}")
     print(f"  统计结果:")
     print(f"    人员计数: {counter.person_count}")

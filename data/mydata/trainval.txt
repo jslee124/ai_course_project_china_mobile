@@ -1,8 +1,8 @@
-C:\Users\asus\Desktop\ai_course_project\yolov5\data\mydata\images\13.jpg
-C:\Users\asus\Desktop\ai_course_project\yolov5\data\mydata\images\2.jpg
-C:\Users\asus\Desktop\ai_course_project\yolov5\data\mydata\images\5.jpg
-C:\Users\asus\Desktop\ai_course_project\yolov5\data\mydata\images\15.jpg
-C:\Users\asus\Desktop\ai_course_project\yolov5\data\mydata\images\7.jpg
-C:\Users\asus\Desktop\ai_course_project\yolov5\data\mydata\images\11.jpg
-C:\Users\asus\Desktop\ai_course_project\yolov5\data\mydata\images\16.jpg
-C:\Users\asus\Desktop\ai_course_project\yolov5\data\mydata\images\1.jpg
+C:\Users\asus\Desktop\ai_course_project\data\mydata\images\13.jpg
+C:\Users\asus\Desktop\ai_course_project\data\mydata\images\2.jpg
+C:\Users\asus\Desktop\ai_course_project\data\mydata\images\5.jpg
+C:\Users\asus\Desktop\ai_course_project\data\mydata\images\15.jpg
+C:\Users\asus\Desktop\ai_course_project\data\mydata\images\7.jpg
+C:\Users\asus\Desktop\ai_course_project\data\mydata\images\11.jpg
+C:\Users\asus\Desktop\ai_course_project\data\mydata\images\16.jpg
+C:\Users\asus\Desktop\ai_course_project\data\mydata\images\1.jpg
