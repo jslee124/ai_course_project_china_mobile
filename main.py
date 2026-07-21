@@ -64,29 +64,19 @@ VEHICLE_CLASSES = {2, 3, 5, 7}  # car, motorcycle, bus, truck
 TARGET_CLASSES = PERSON_CLASSES | VEHICLE_CLASSES  # 所有需要检测的类别
 
 
-def count_obj(box, w, h, track_id, cls_id, counted_ids, line_y, left_zone, right_zone):
+def count_obj(box, w, h, track_id, cls_id, counted_ids, line_y):
     """基于过线检测的计数逻辑，分别统计人员和车辆"""
-    # 对象中心点
     center_x = int(box[0] + (box[2] - box[0]) / 2)
     center_y = int(box[1] + (box[3] - box[1]) / 2)
 
-    result = {"person_left": 0, "person_right": 0, "vehicle_left": 0, "vehicle_right": 0}
+    result = {"person": 0, "vehicle": 0}
 
-    # 判断是否穿过计数线
+    # 判断物体中心是否越过计数线
     if center_y > line_y and track_id not in counted_ids:
-        is_person = cls_id in PERSON_CLASSES
-        if center_x < int(w / 2):
-            # 左侧车道
-            if is_person:
-                result["person_left"] = 1
-            else:
-                result["vehicle_left"] = 1
+        if cls_id in PERSON_CLASSES:
+            result["person"] = 1
         else:
-            # 右侧车道
-            if is_person:
-                result["person_right"] = 1
-            else:
-                result["vehicle_right"] = 1
+            result["vehicle"] = 1
 
     return result
 
@@ -98,6 +88,7 @@ class VehicleCounter:
         self.opt = opt
         self.device = select_device(opt.device)
         self.half = opt.half and self.device.type != "cpu"
+        self.line_ratio = getattr(opt, "line_ratio", 0.7)
 
         # 加载 YOLO 模型
         self.model = DetectMultiBackend(opt.yolo_model, device=self.device, dnn=opt.dnn)
@@ -129,16 +120,16 @@ class VehicleCounter:
         self.vehicle_count = 0
         self.counted_ids = set()
 
-        # 计数线位置（距底部 350 像素）
+        # 计数线位置（按画面比例）
         self.counting_line_y = None
 
     def process_frame(self, im, im0, path, vid_cap, frame_idx):
         """处理单帧图像，返回标注后的图像"""
         h, w = im0.shape[:2]
 
-        # 动态设置计数线
+        # 动态设置计数线（按 line_ratio 比例，默认 70% 高度处）
         if self.counting_line_y is None:
-            self.counting_line_y = h - 350
+            self.counting_line_y = int(h * self.line_ratio)
 
         im_tensor = torch.from_numpy(im).to(self.device)
         im_tensor = im_tensor.half() if self.half else im_tensor.float()
@@ -190,13 +181,12 @@ class VehicleCounter:
                         # 过线计数
                         result = count_obj(
                             bboxes, w, h, track_id, cls_id,
-                            self.counted_ids, self.counting_line_y, w, h
+                            self.counted_ids, self.counting_line_y
                         )
-                        self.person_count += result["person_left"] + result["person_right"]
-                        self.vehicle_count += result["vehicle_left"] + result["vehicle_right"]
+                        self.person_count += result["person"]
+                        self.vehicle_count += result["vehicle"]
                         if track_id not in self.counted_ids:
-                            if (result["person_left"] + result["person_right"] +
-                                    result["vehicle_left"] + result["vehicle_right"]) > 0:
+                            if (result["person"] + result["vehicle"]) > 0:
                                 self.counted_ids.add(track_id)
 
                         # 类别名
@@ -220,25 +210,26 @@ class VehicleCounter:
                             "bbox": bboxes.tolist(),
                         })
 
-        # 画计数线
+        # 画计数线（整条实线，清晰可见）
         line_y = self.counting_line_y
-        cv2.line(im0_annotated, (0, line_y), (int(w / 2) - 50, line_y), (0, 255, 0), thickness=2)
-        cv2.line(im0_annotated, (int(w / 2) + 50, line_y), (w, line_y), (255, 0, 0), thickness=2)
+        cv2.line(im0_annotated, (0, line_y), (w, line_y), (0, 255, 255), thickness=3)
+        cv2.putText(im0_annotated, "COUNTING LINE", (10, line_y - 10),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 255), 2, cv2.LINE_AA)
 
-        # 画中间分隔线
-        mid_x = int(w / 2)
-        cv2.line(im0_annotated, (mid_x, 0), (mid_x, h), (255, 255, 255), thickness=1)
-
-        # 在画面上显示计数结果
+        # 在画面上显示计数结果（带半透明背景）
         font = cv2.FONT_HERSHEY_SIMPLEX
-        font_scale = 1.2
-        thickness = 2
+        font_scale = 1.5
+        thickness = 3
 
-        # 左侧计数（绿色 = 人, 蓝色 = 车）
+        # 半透明背景面板
+        overlay = im0_annotated.copy()
+        cv2.rectangle(overlay, (0, 0), (450, 120), (0, 0, 0), -1)
+        im0_annotated = cv2.addWeighted(im0_annotated, 0.5, overlay, 0.5, 0)
+
         cv2.putText(im0_annotated, f"Person: {self.person_count}",
-                    (10, 40), font, font_scale, (0, 255, 0), thickness, cv2.LINE_AA)
+                    (10, 45), font, font_scale, (0, 255, 0), thickness, cv2.LINE_AA)
         cv2.putText(im0_annotated, f"Vehicle: {self.vehicle_count}",
-                    (10, 80), font, font_scale, (255, 0, 0), thickness, cv2.LINE_AA)
+                    (10, 95), font, font_scale, (255, 0, 0), thickness, cv2.LINE_AA)
 
         return im0_annotated, det_results
 
@@ -373,6 +364,8 @@ if __name__ == "__main__":
                         help="输入视频路径")
     parser.add_argument("--output", type=str, default="inference/output",
                         help="输出目录")
+    parser.add_argument("--line-ratio", type=float, default=0.7,
+                        help="计数线位置 (占画面高度的比例, 0=顶部 1=底部)")
 
     # 检测参数
     parser.add_argument("--imgsz", "--img", "--img-size", nargs="+", type=int,
