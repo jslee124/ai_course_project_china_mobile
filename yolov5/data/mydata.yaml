@@ -1,0 +1,18 @@
+# 高速车流量计数器 - YOLOv5 训练数据配置
+
+# 数据集路径（split_dataset.py 在 data/mydata/ 下生成的 txt 文件）
+path: ../data/mydata
+train: train.txt
+val: val.txt
+test: test.txt
+
+# 类别数量
+nc: 5
+
+# 类别名称列表
+names:
+  0: person
+  1: car
+  2: motorcycle
+  3: bus
+  4: truck
