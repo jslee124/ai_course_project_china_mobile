@@ -102,9 +102,9 @@ def main():
         try:
             convert_annotation(str(xml_path), str(labels_dir), args.classes, image_id)
             count += 1
-            print(f"  ✓ {xml_path.name} → {image_id}.txt")
+            print(f"  [OK] {xml_path.name} -> {image_id}.txt")
         except Exception as e:
-            print(f"  ✗ {xml_path.name} 转换失败: {e}")
+            print(f"  [FAIL] {xml_path.name} 转换失败: {e}")
 
     print(f"\n转换完成! {count}/{len(xml_files)} 个文件成功转换")
     print(f"输出目录: {labels_dir}")

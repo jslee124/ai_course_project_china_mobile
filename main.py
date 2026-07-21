@@ -64,21 +64,7 @@ VEHICLE_CLASSES = {2, 3, 5, 7}  # car, motorcycle, bus, truck
 TARGET_CLASSES = PERSON_CLASSES | VEHICLE_CLASSES  # 所有需要检测的类别
 
 
-def count_obj(box, w, h, track_id, cls_id, counted_ids, line_y):
-    """基于过线检测的计数逻辑，分别统计人员和车辆"""
-    center_x = int(box[0] + (box[2] - box[0]) / 2)
-    center_y = int(box[1] + (box[3] - box[1]) / 2)
-
-    result = {"person": 0, "vehicle": 0}
-
-    # 判断物体中心是否越过计数线
-    if center_y > line_y and track_id not in counted_ids:
-        if cls_id in PERSON_CLASSES:
-            result["person"] = 1
-        else:
-            result["vehicle"] = 1
-
-    return result
+# 不再需要独立的 count_obj 函数，计数逻辑整合到 VehicleCounter 中
 
 
 class VehicleCounter:
@@ -119,6 +105,8 @@ class VehicleCounter:
         self.person_count = 0
         self.vehicle_count = 0
         self.counted_ids = set()
+        self.track_frames = {}  # track_id -> 连续出现帧数
+        self.min_track_frames = 15  # 稳定追踪至少 N 帧后才计数
 
         # 计数线位置（按画面比例）
         self.counting_line_y = None
@@ -178,16 +166,17 @@ class VehicleCounter:
                         track_id = int(output[4])
                         cls_id = int(output[5])
 
-                        # 过线计数
-                        result = count_obj(
-                            bboxes, w, h, track_id, cls_id,
-                            self.counted_ids, self.counting_line_y
-                        )
-                        self.person_count += result["person"]
-                        self.vehicle_count += result["vehicle"]
-                        if track_id not in self.counted_ids:
-                            if (result["person"] + result["vehicle"]) > 0:
-                                self.counted_ids.add(track_id)
+                        # 追踪帧计数
+                        self.track_frames[track_id] = self.track_frames.get(track_id, 0) + 1
+
+                        # 稳定追踪计数：track 连续出现超 min_track_frames 帧，且未被计数过
+                        if (self.track_frames[track_id] >= self.min_track_frames
+                                and track_id not in self.counted_ids):
+                            self.counted_ids.add(track_id)
+                            if cls_id in PERSON_CLASSES:
+                                self.person_count += 1
+                            else:
+                                self.vehicle_count += 1
 
                         # 类别名
                         cls_name = COCO_CLASSES.get(cls_id, f"cls{cls_id}")
@@ -199,7 +188,7 @@ class VehicleCounter:
                         else:
                             color = (255, 0, 0)  # 蓝色：车
 
-                        label = f"ID:{track_id} {cls_name} {category}"
+                        label = f"ID:{track_id} {cls_name}"
                         annotator.box_label(bboxes, label, color=color)
 
                         det_results.append({
@@ -208,6 +197,7 @@ class VehicleCounter:
                             "class_name": cls_name,
                             "category": category,
                             "bbox": bboxes.tolist(),
+                            "frames": self.track_frames[track_id],
                         })
 
         # 画计数线（整条实线，清晰可见）
@@ -322,9 +312,11 @@ def detect(opt, gr_callback=None):
             if dw > max_display_w or dh > max_display_h:
                 scale = min(max_display_w / dw, max_display_h / dh)
                 display = cv2.resize(display, (int(dw * scale), int(dh * scale)))
-            cv2.namedWindow("Vehicle Counter", cv2.WINDOW_NORMAL)
+            cv2.namedWindow("Vehicle Counter", cv2.WINDOW_NORMAL | cv2.WINDOW_GUI_NORMAL)
             cv2.imshow("Vehicle Counter", display)
-            if cv2.waitKey(1) & 0xFF == ord("q"):
+            key = cv2.waitKey(1) & 0xFF
+            # 按 q 退出 或 点击 X 关闭窗口
+            if key == ord("q") or cv2.getWindowProperty("Vehicle Counter", cv2.WND_PROP_VISIBLE) < 1:
                 break
 
     # 清理
@@ -391,8 +383,8 @@ if __name__ == "__main__":
                         help="增强推理")
 
     # 显示和保存
-    parser.add_argument("--show-vid", action="store_true", default=True,
-                        help="实时显示推理结果")
+    parser.add_argument("--show-vid", action="store_true", default=False,
+                        help="实时显示推理结果（按 Q 或关闭窗口退出）")
     parser.add_argument("--save-vid", action="store_true", default=True,
                         help="保存输出视频")
     parser.add_argument("--save-txt", action="store_true",

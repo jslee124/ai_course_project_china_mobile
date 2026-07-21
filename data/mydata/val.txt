@@ -1,0 +1,2 @@
+C:\Users\asus\Desktop\ai_course_project\yolov5\data\mydata\images\16.jpg
+C:\Users\asus\Desktop\ai_course_project\yolov5\data\mydata\images\1.jpg

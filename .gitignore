@@ -16,7 +16,7 @@ inference/
 runs/
 
 # Video files (except root example)
-*.mp4
+**/*.mp4
 !example.mp4
 
 # Wandb logs

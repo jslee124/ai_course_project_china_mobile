@@ -91,6 +91,7 @@ class GradioVehicleCounter:
         self.counter.person_count = 0
         self.counter.vehicle_count = 0
         self.counter.counted_ids = set()
+        self.counter.track_frames = {}
         self.counter.counting_line_y = None
 
         frame_idx = 0
