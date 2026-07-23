@@ -1,0 +1,46 @@
+# Python virtual environment
+venv/
+
+# Python cache
+**/__pycache__/
+*.py[cod]
+*.so
+
+# Models (large files)
+models/
+**/*.pt
+**/*.pth
+
+# Output
+inference/
+runs/
+
+# Video files (except root example)
+**/*.mp4
+!example.mp4
+
+# Wandb logs
+**/wandb/
+
+# Archives and documents
+*.zip
+*.docx
+
+# Cache
+*.cache
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+__MACOSX/
+
+# Original extracted archive
+高速车流量计数器/
+
+# Temp
+*.tmp
+temp/

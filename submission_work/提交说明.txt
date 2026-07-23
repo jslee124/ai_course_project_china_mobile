@@ -1,0 +1,62 @@
+高速车流量计数器——项目成果材料提交说明
+========================================
+
+一、提交内容
+
+1. 项目报告
+   - 高速车流量计数器项目报告.docx
+   - 高速车流量计数器项目报告.pdf
+
+2. 项目工程
+   - 命令行检测、追踪与穿线计数：main.py
+   - Gradio 前端：webui.py
+   - 标注工具：label_tool.py
+   - XML 转 YOLO：voc2yolo.py
+   - 数据集划分：split_dataset.py
+   - YOLOv5 训练代码：yolov5/
+   - DeepSORT：tracker/
+   - 标注数据与划分结果：data/
+   - 必要模型：models/yolov5m.pt、tracker/deep/checkpoint/
+   - 示例输入：example.mp4
+   - 已验证输出：results/processed_example.mp4
+   - 训练与验证证据：results/training/、results/validation/
+
+二、快速运行
+
+在“项目工程”目录执行：
+
+pip install -r requirements.txt
+
+命令行推理：
+
+python main.py --source example.mp4 --yolo_model models/yolov5m.pt --project runs/track --name result --exist-ok
+
+Gradio 前端：
+
+python webui.py
+
+标注、转换与划分：
+
+python label_tool.py
+python voc2yolo.py
+python split_dataset.py
+
+训练入口：
+
+python yolov5/train.py
+
+三、验证结果
+
+- 示例视频：473 帧，1280×720。
+- 命令行和 Gradio 均完成全视频处理。
+- 完整视频最终计数：Person=0，Vehicle=15。
+- 9 张图片、9 份 XML、9 份 YOLO TXT，共 21 个标注框。
+- 1 轮训练成功生成 best.pt；该训练仅验证流程，不代表正式精度。
+
+四、提交前需要手工填写
+
+请打开项目报告封面，补充学生姓名、学号、班级/专业和指导教师。
+
+五、说明
+
+提交包未包含虚拟环境、Git 历史、重复原始工程、全部 YOLOv5 权重和无效旧测试视频，以控制体积并避免材料混淆。
